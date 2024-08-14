@@ -8,10 +8,30 @@ import { exec } from 'child_process';
 const BOT_TOKEN = '6838753278:AAHSODkaOl3BxEE2bMEb8i4rhnejbYK7_9s';
 const CHAT_ID = '-4028539622';
 const LOG_FILE = 'C:\\Users\\Digital Architect SR\\Desktop\\bot_grading\\bot_grading_error.log';
+const STATE_FILE = 'state.txt'; // File to store allow/not allow state
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+const COOLDOWN_PERIOD = 60000; // 60 seconds
+let lastRestartTime = 0;
 
+// Initialize state file if it doesn't exist
+if (!fs.existsSync(STATE_FILE)) {
+  fs.writeFileSync(STATE_FILE, '1'); // Default to allow (1)
+}
+
+function getState() {
+  return fs.readFileSync(STATE_FILE, 'utf-8') === '1';
+}
+
+function setState(allowed) {
+  fs.writeFileSync(STATE_FILE, allowed ? '1' : '0');
+}
 
 async function sendErrorLogToGroup() {
+  if (!getState()) {
+    console.log('Sending error log is disabled.');
+    return;
+  }
+
   console.log('Preparing to send log file...');
   const formData = new FormData();
   formData.append('chat_id', CHAT_ID);
@@ -55,6 +75,11 @@ function watchLogFile() {
 }
 
 function checkLogFileContent() {
+  if (!getState()) {
+    console.log('Functionality disabled by user.');
+    return;
+  }
+
   fs.readFile(LOG_FILE, 'utf-8', (err, data) => {
     if (err) {
       console.error('Error reading log file:', err);
@@ -63,15 +88,33 @@ function checkLogFileContent() {
 
     const uploadFailed = /Upload failed after 5 attempts/;
     const closingSession = /Closing stale open session for new outgoing prekey bundle/;
+    const noPm2Processes = /pm2 0 process/;
+
+    if (noPm2Processes.test(data)) {
+      console.log('Detected "pm2 0 process" error. Restart ignored due to no running processes.');
+      return;
+    }
 
     if (closingSession.test(data)) {
-      console.log('Found "Closing stale open session for new outgoing prekey bundle" in log. Sending log and restarting application...');
-      sendErrorLogToGroup();
-      restartProcess('bot_grading');
-      restartProcess('bot_da');
+      console.log('Found "Closing stale open session for new outgoing prekey bundle" in log.');
+      if (Date.now() - lastRestartTime > COOLDOWN_PERIOD) {
+        console.log('Sending log and restarting application...');
+        lastRestartTime = Date.now();
+        sendErrorLogToGroup();
+        restartProcess('bot_grading');
+        restartProcess('bot_da');
+      } else {
+        console.log('Restart ignored due to cooldown period.');
+      }
     } else if (!uploadFailed.test(data)) {
-      console.log('Log file does not contain "Upload failed after 5 attempts". Sending log...');
-      sendErrorLogToGroup();
+      console.log('Log file does not contain "Upload failed after 5 attempts".');
+      if (Date.now() - lastRestartTime > COOLDOWN_PERIOD) {
+        console.log('Sending log...');
+        lastRestartTime = Date.now();
+        sendErrorLogToGroup();
+      } else {
+        console.log('Log sending ignored due to cooldown period.');
+      }
     } else {
       console.log('Log file contains "Upload failed after 5 attempts". Ignoring...');
     }
@@ -87,6 +130,11 @@ function handleRestartCommand(msg) {
 }
 
 function restartProcess(processName, chatId = CHAT_ID) {
+  if (!getState()) {
+    console.log(`Restarting ${processName} is disabled.`);
+    return;
+  }
+
   exec(`pm2 restart ${processName}`, (error, stdout, stderr) => {
     if (error) {
       console.error(`exec error: ${error}`);
@@ -100,10 +148,21 @@ function restartProcess(processName, chatId = CHAT_ID) {
 
 bot.on('message', (msg) => {
   const text = msg.text;
-  if (text === '!restartbot') {
+  if (text === '!allow') {
+    setState(true);
+    bot.sendMessage(msg.chat.id, 'Bot is now allowed to send error logs and restart processes.');
+  } else if (text === '!notallow') {
+    setState(false);
+    bot.sendMessage(msg.chat.id, 'Bot is now NOT allowed to send error logs or restart processes.');
+  } else if (text === '!restartbot') {
     handleRestartCommand(msg);
   }
 });
 
 watchLogFile();
-// oke /
+
+// Optionally, check the state every 5 minutes
+setInterval(() => {
+  const allowed = getState();
+  console.log(`Checking state: ${allowed ? 'Allowed' : 'Not Allowed'}`);
+}, 300000); // 300000ms = 5 minutes

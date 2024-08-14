@@ -5,10 +5,11 @@ import TelegramBot from 'node-telegram-bot-api';
 import { exec } from 'child_process';
 
 // Configuration
-const BOT_TOKEN = '6838753278:AAFmV3guZ5UKJS-rPx5j-DJh42_nfQJVH3k';
+const BOT_TOKEN = '6838753278:AAHSODkaOl3BxEE2bMEb8i4rhnejbYK7_9s';
 const CHAT_ID = '-4028539622';
-const LOG_FILE = 'C:\\Users\\jaja.valentino\\Desktop\\Whatsapp_auth\\bot-grading-error.log';
+const LOG_FILE = 'C:\\Users\\Digital Architect SR\\Desktop\\bot_grading\\bot_grading_error.log';
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+
 
 async function sendErrorLogToGroup() {
   console.log('Preparing to send log file...');
@@ -44,23 +45,48 @@ function watchLogFile() {
   fs.watchFile(LOG_FILE, (curr, prev) => {
     console.log(`File changed at ${curr.mtime}`);
     console.log(`Current size: ${curr.size}, Previous size: ${prev.size}`);
-    if (curr.size > prev.size) {
-      console.log('Detected change in error.log. Sending to group...');
-      sendErrorLogToGroup();
+    
+    if (curr.mtime > prev.mtime) {
+      console.log('Detected change in error.log. Checking content...');
+      checkLogFileContent();
     }
   });
   console.log(`Watching for changes in ${LOG_FILE}`);
 }
 
+function checkLogFileContent() {
+  fs.readFile(LOG_FILE, 'utf-8', (err, data) => {
+    if (err) {
+      console.error('Error reading log file:', err);
+      return;
+    }
+
+    const uploadFailed = /Upload failed after 5 attempts/;
+    const closingSession = /Closing stale open session for new outgoing prekey bundle/;
+
+    if (closingSession.test(data)) {
+      console.log('Found "Closing stale open session for new outgoing prekey bundle" in log. Sending log and restarting application...');
+      sendErrorLogToGroup();
+      restartProcess('bot_grading');
+      restartProcess('bot_da');
+    } else if (!uploadFailed.test(data)) {
+      console.log('Log file does not contain "Upload failed after 5 attempts". Sending log...');
+      sendErrorLogToGroup();
+    } else {
+      console.log('Log file contains "Upload failed after 5 attempts". Ignoring...');
+    }
+  });
+}
+
 function handleRestartCommand(msg) {
   const chatId = msg.chat.id;
   bot.sendMessage(chatId, "Restarting the bot...");
- 
+  
   restartProcess('bot_grading', chatId);
   restartProcess('bot_da', chatId);
 }
 
-function restartProcess(processName, chatId) {
+function restartProcess(processName, chatId = CHAT_ID) {
   exec(`pm2 restart ${processName}`, (error, stdout, stderr) => {
     if (error) {
       console.error(`exec error: ${error}`);

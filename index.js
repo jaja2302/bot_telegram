@@ -9,6 +9,7 @@ const BOT_TOKEN = '6838753278:AAHSODkaOl3BxEE2bMEb8i4rhnejbYK7_9s';
 const CHAT_ID = '-4028539622';
 const LOG_FILE = 'C:\\Users\\Digital Architect SR\\Desktop\\bot_grading\\bot_grading_error.log';
 const STATE_FILE = 'state.txt'; // File to store allow/not allow state
+const MAX_LOG_SIZE = 25 * 1024; // 25 KB
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 const COOLDOWN_PERIOD = 60000; // 60 seconds
 let lastRestartTime = 0;
@@ -29,6 +30,12 @@ function setState(allowed) {
 async function sendErrorLogToGroup() {
   if (!getState()) {
     console.log('Sending error log is disabled.');
+    return;
+  }
+
+  if (fs.statSync(LOG_FILE).size > MAX_LOG_SIZE) {
+    console.log('Log file too large. Clearing it...');
+    clearLogFile();
     return;
   }
 
@@ -77,6 +84,12 @@ function watchLogFile() {
 function checkLogFileContent() {
   if (!getState()) {
     console.log('Functionality disabled by user.');
+    return;
+  }
+
+  if (fs.statSync(LOG_FILE).size > MAX_LOG_SIZE) {
+    console.log('Log file too large. Clearing it...');
+    clearLogFile();
     return;
   }
 

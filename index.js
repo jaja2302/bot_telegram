@@ -99,9 +99,24 @@ function checkLogFileContent() {
       return;
     }
 
+    const forbiddenError = /Error fetching files: Error: forbidden/;
     const uploadFailed = /Upload failed after 5 attempts/;
     const closingSession = /Closing stale open session for new outgoing prekey bundle/;
     const noPm2Processes = /pm2 0 process/;
+
+    if (forbiddenError.test(data)) {
+      console.log('Detected "Error fetching files: Error: forbidden" error.');
+      if (Date.now() - lastRestartTime > COOLDOWN_PERIOD) {
+        console.log('Sending log and restarting application due to forbidden error...');
+        lastRestartTime = Date.now();
+        sendErrorLogToGroup();
+        restartProcess('bot_grading');
+        // restartProcess('bot_da');
+      } else {
+        console.log('Restart ignored due to cooldown period.');
+      }
+      return;
+    }
 
     if (noPm2Processes.test(data)) {
       console.log('Detected "pm2 0 process" error. Restart ignored due to no running processes.');
@@ -115,7 +130,7 @@ function checkLogFileContent() {
         lastRestartTime = Date.now();
         sendErrorLogToGroup();
         restartProcess('bot_grading');
-        restartProcess('bot_da');
+        // restartProcess('bot_da');
       } else {
         console.log('Restart ignored due to cooldown period.');
       }
@@ -139,7 +154,7 @@ function handleRestartCommand(msg) {
   bot.sendMessage(chatId, "Restarting the bot...");
   
   restartProcess('bot_grading', chatId);
-  restartProcess('bot_da', chatId);
+  // restartProcess('bot_da', chatId);
 }
 
 function restartProcess(processName, chatId = CHAT_ID) {

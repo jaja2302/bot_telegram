@@ -1,8 +1,8 @@
 import { appendFileSync } from 'fs';
 import axios from 'axios';
 
-let logFile = 'log_uptime_downtime_pc_ho.txt';
-
+// let logFile = '';
+let logFile = 'C:\\Users\\Digital Architect SR\\Desktop\\bot_grading\\log_uptime_downtime_pc_ho.txt';
 // Format date for logging
 function formatDate(date) {
   return date.toISOString().replace(/T/, ' ').replace(/\..+/, '');

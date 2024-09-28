@@ -29,10 +29,12 @@ bot.on('message', async (msg) => {
 
 watchLogFile();
 
-
 cron.schedule('*/5 * * * *', () => {
-  const allowed = getState()
-  pingGoogle,
+  // First task: Ping Google
+  pingGoogle();
+
+  // Second task: Check state
+  const allowed = getState();
   console.log(`Checking state: ${allowed ? 'Allowed' : 'Not Allowed'}`);
 }, {
   scheduled: true,

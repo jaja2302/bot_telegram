@@ -3,7 +3,8 @@ import fetch from 'node-fetch';
 import FormData from 'form-data';
 import TelegramBot from 'node-telegram-bot-api';
 import { exec } from 'child_process';
-
+import {pingGoogle} from './utils/rekap_harian_uptime.js'
+import cron from 'node-cron'
 // Configuration
 const BOT_TOKEN = '6838753278:AAHSODkaOl3BxEE2bMEb8i4rhnejbYK7_9s';
 const CHAT_ID = '-4028539622';
@@ -188,6 +189,16 @@ bot.on('message', (msg) => {
 });
 
 watchLogFile();
+cron.schedule(
+  '*/5 * * * *',
+  async () => {
+    await pingGoogle();
+  },
+  {
+    scheduled: true,
+    timezone: 'Asia/Jakarta',
+  }
+);
 
 // Optionally, check the state every 5 minutes
 setInterval(() => {

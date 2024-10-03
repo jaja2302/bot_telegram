@@ -28,6 +28,7 @@ bot.on('message', async (msg) => {
 });
 
 watchLogFile();
+// oke
 
 cron.schedule('*/5 * * * *', () => {
   // First task: Ping Google
